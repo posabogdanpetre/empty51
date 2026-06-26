@@ -1,24 +1,6 @@
-/*
- * ADOBE CONFIDENTIAL
- * ___________________
- * Copyright 2026 Adobe
- * All Rights Reserved.
- * NOTICE: All information contained herein is, and remains
- * the property of Adobe and its suppliers, if any. The intellectual
- * and technical concepts contained herein are proprietary to Adobe
- * and its suppliers and are protected by all applicable intellectual
- * property laws, including trade secret and copyright laws.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Adobe.
- *
- * @version 1.0.0
- * @since 2026-05-19
- */
 /* eslint-disable no-underscore-dangle */
-
 /*
- * AEM Embed WebComponent — powered by LLMApps SDK
+* AEM Embed WebComponent — powered by LLMApps SDK
  *
  * Loads AEM EDS content into any MCP Apps host (ChatGPT, Claude, etc.)
  * and passes an MCPBridge instance to each block for tool data and interaction.
@@ -45,8 +27,6 @@ export class AEMEmbed extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.initialized = false;
 
-    window.hlx = window.hlx || {};
-    window.hlx.suppressLoadPage = true;
     [window.hlx.codeBasePath] = new URL(import.meta.url).pathname.split('/scripts/');
 
     // Create the bridge instance — shared by all blocks in this embed
@@ -97,60 +77,17 @@ export class AEMEmbed extends HTMLElement {
   // Content handlers
   // ---------------------------------------------------------------
 
-  async handleHeader(htmlText, body, origin) {
-    await this.pseudoDecorateMain(htmlText, body, origin);
-
-    const main = body.querySelector('main');
-    const header = document.createElement('header');
-    body.append(header);
-    const { buildBlock } = await import(`${origin}${window.hlx.codeBasePath}/scripts/aem.js`);
-    const block = buildBlock('header', '');
-    header.append(block);
-
-    const cell = block.firstElementChild.firstElementChild;
-    const nav = document.createElement('nav');
-    cell.append(nav);
-    while (main.firstElementChild) nav.append(main.firstElementChild);
-    main.remove();
-
-    await this.loadBlock(body, block, 'header', origin);
-
-    block.dataset.blockStatus = 'loaded';
-    body.style.height = 'var(--nav-height)';
-    body.classList.add('appear');
-  }
-
-  async handleFooter(htmlText, body, origin) {
-    await this.pseudoDecorateMain(htmlText, body, origin);
-
-    const main = body.querySelector('main');
-    const footer = document.createElement('footer');
-    body.append(footer);
-    const { buildBlock } = await import(`${origin}${window.hlx.codeBasePath}/scripts/aem.js`);
-    const block = buildBlock('footer', '');
-    footer.append(block);
-
-    const cell = block.firstElementChild.firstElementChild;
-    const nav = document.createElement('nav');
-    cell.append(nav);
-    while (main.firstElementChild) nav.append(main.firstElementChild);
-    main.remove();
-
-    await this.loadBlock(body, block, 'footer', origin);
-
-    block.dataset.blockStatus = 'loaded';
-    body.classList.add('appear');
-  }
-
   async pseudoDecorateMain(htmlText, body, origin) {
     const main = document.createElement('main');
     body.append(main);
     main.innerHTML = htmlText;
 
-    const { decorateMain } = await import(`${origin}${window.hlx.codeBasePath}/scripts/scripts.js`);
-    if (decorateMain) {
-      await decorateMain(main, true);
-    }
+    // Import aem.js directly (not scripts.js) to avoid triggering loadPage()
+    // which scripts.js calls unconditionally at module level, loading header/footer.
+    const { decorateIcons, decorateSections, decorateBlocks } = await import(`${origin}${window.hlx.codeBasePath}/scripts/aem.js`);
+    decorateIcons(main);
+    decorateSections(main);
+    decorateBlocks(main);
 
     const blockElements = main.querySelectorAll('.block');
 
@@ -188,8 +125,6 @@ export class AEMEmbed extends HTMLElement {
         if (!urlAttribute) {
           throw new Error('aem-embed missing url attribute');
         }
-
-        const type = this.getAttribute('type') || 'main';
 
         const body = document.createElement('body');
         body.style = 'display: none';
@@ -233,9 +168,7 @@ export class AEMEmbed extends HTMLElement {
         applyTheme(this._bridge.hostContext?.theme || /** @type {any} */(window).openai?.theme || 'light');
         this._bridge.onContextChange?.((ctx) => applyTheme(ctx.theme));
 
-        if (type === 'main') await this.handleMain(htmlText, body, origin);
-        if (type === 'header') await this.handleHeader(htmlText, body, origin);
-        if (type === 'footer') await this.handleFooter(htmlText, body, origin);
+        await this.handleMain(htmlText, body, origin);
 
         const fonts = document.createElement('link');
         fonts.setAttribute('rel', 'stylesheet');
@@ -248,18 +181,6 @@ export class AEMEmbed extends HTMLElement {
     }
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  async importScript(url) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = url;
-      script.async = true;
-      script.type = 'module';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.body.appendChild(script);
-    });
-  }
 }
 
 customElements.define('aem-embed', AEMEmbed);
